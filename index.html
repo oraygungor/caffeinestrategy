@@ -329,15 +329,18 @@
             const targetPeak = bodyWeight * 6;
 
             const absorptionTime = 20 / 60; 
-            const simulationDuration = raceDuration; // Use user input for simulation duration
+            const simulationDuration = raceDuration;
             const timeStep = 0.05;
             const labels = [], dataPoints = [], doseEvents = [];
             
-            for (let t = -absorptionTime; t < 0; t += timeStep) {
-                labels.push(parseFloat(t.toFixed(2)));
-                dataPoints.push((t + absorptionTime) / absorptionTime * initialDose);
+            if (initialDose > 0) {
+                for (let t = -absorptionTime; t < 0; t += timeStep) {
+                    labels.push(parseFloat(t.toFixed(2)));
+                    dataPoints.push((t + absorptionTime) / absorptionTime * initialDose);
+                }
+                doseEvents.push({ time: -absorptionTime, amount: initialDose.toFixed(0) });
             }
-            doseEvents.push({ time: -absorptionTime, amount: initialDose.toFixed(0) });
+
 
             let currentCaffeine = initialDose;
             const triggerLevel = (strategy === 'stay_high') ? Math.max(targetFloor, targetPeak - doseAmount) : targetFloor;
@@ -347,25 +350,28 @@
 
             let isDosePending = false, nextDoseTime = -1;
 
-            if (strategy === 'stay_high' && currentCaffeine < triggerLevel) {
-                isDosePending = true;
-                nextDoseTime = 0;
-            }
-
             for (let t = 0; t <= simulationDuration; t += timeStep) {
+                // Apply a scheduled dose if its time has come
                 if (isDosePending && t >= nextDoseTime) {
                     currentCaffeine += doseAmount;
                     doseEvents.push({ time: nextDoseTime, amount: doseAmount.toFixed(0) });
-                    isDosePending = false;
+                    isDosePending = false; // The dose has been taken, so we are no longer pending
                 }
+
                 labels.push(parseFloat(t.toFixed(2)));
                 dataPoints.push(currentCaffeine);
-                let nextCaffeine = currentCaffeine * decayFactor;
-                if (!isDosePending && nextCaffeine < triggerLevel && currentCaffeine >= triggerLevel) {
+
+                // If we are not waiting for a dose and the current level is below the trigger, schedule a new one.
+                // This is the key fix for the bug.
+                if (!isDosePending && currentCaffeine < triggerLevel) {
                     isDosePending = true;
-                    nextDoseTime = Math.ceil((t + timeStep) * 2) / 2;
+                    // Schedule for the next practical time slot (rounded to 30 mins)
+                    // Ensure the scheduled time is not in the past
+                    nextDoseTime = Math.max(t, Math.ceil(t * 2) / 2);
                 }
-                currentCaffeine = nextCaffeine;
+                
+                // Decay for the next step
+                currentCaffeine = currentCaffeine * decayFactor;
             }
             
             drawChart(labels, dataPoints, targetFloor, targetPeak, raceStartDate);
@@ -380,8 +386,8 @@
             const chartWidth = canvas.width - padding.left - padding.right;
             const chartHeight = canvas.height - padding.top - padding.bottom;
             
-            const xMin = labels[0], xMax = labels[labels.length - 1];
-            const yMax = Math.max(yMaxTarget * 1.2, ...data);
+            const xMin = labels[0] || -0.5, xMax = labels[labels.length - 1] || 8;
+            const yMax = Math.max(yMaxTarget * 1.2, ...data, 100); // Ensure y-axis is not 0
 
             const getX = (val) => padding.left + ((val - xMin) / (xMax - xMin)) * chartWidth;
             const getY = (val) => padding.top + chartHeight - (val / yMax) * chartHeight;
@@ -403,7 +409,7 @@
                 }
             }
             
-            const xStep = Math.max(1, Math.round(xMax / 8)); // Dynamic step for x-axis
+            const xStep = Math.max(1, Math.round((xMax - xMin) / 8)); // Dynamic step for x-axis
             for (let i = Math.ceil(xMin); i <= xMax; i += 1) {
                  if (i >= 0 && i % xStep === 0) {
                     const x = getX(i);
@@ -423,22 +429,24 @@
             ctx.font = 'bold 12px sans-serif';
             ctx.fillText(translations[currentLang].target_zone_label, padding.left + 55, yTargetMin + 15);
             
-            ctx.beginPath();
-            ctx.moveTo(getX(labels[0]), getY(data[0]));
-            for (let i = 1; i < labels.length; i++) ctx.lineTo(getX(labels[i]), getY(data[i]));
-            ctx.lineTo(getX(labels[labels.length - 1]), getY(0));
-            ctx.lineTo(getX(labels[0]), getY(0));
-            ctx.closePath();
-            ctx.fillStyle = 'rgba(0, 123, 255, 0.15)';
-            ctx.fill();
+            if (labels.length > 0) {
+                ctx.beginPath();
+                ctx.moveTo(getX(labels[0]), getY(data[0]));
+                for (let i = 1; i < labels.length; i++) ctx.lineTo(getX(labels[i]), getY(data[i]));
+                ctx.lineTo(getX(labels[labels.length - 1]), getY(0));
+                ctx.lineTo(getX(labels[0]), getY(0));
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(0, 123, 255, 0.15)';
+                ctx.fill();
 
-            ctx.beginPath();
-            ctx.moveTo(getX(labels[0]), getY(data[0]));
-            for (let i = 1; i < labels.length; i++) ctx.lineTo(getX(labels[i]), getY(data[i]));
-            ctx.strokeStyle = '#007bff';
-            ctx.lineWidth = 3;
-            ctx.lineJoin = 'round';
-            ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(getX(labels[0]), getY(data[0]));
+                for (let i = 1; i < labels.length; i++) ctx.lineTo(getX(labels[i]), getY(data[i]));
+                ctx.strokeStyle = '#007bff';
+                ctx.lineWidth = 3;
+                ctx.lineJoin = 'round';
+                ctx.stroke();
+            }
         }
 
         function updateResults(doseEvents, baseTime) {
@@ -451,7 +459,7 @@
             });
 
             const summaryElement = document.getElementById('summary-text');
-            const raceDoses = doseEvents.filter(e => e.time >= 0);
+            const raceDoses = doseEvents.filter(e => e.time >= 0 && e.amount > 0);
             if (raceDoses.length > 1) {
                  let totalInterval = 0;
                  for (let i = 1; i < raceDoses.length; i++) totalInterval += raceDoses[i].time - raceDoses[i - 1].time;
