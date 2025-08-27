@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kişiselleştirilebilir Kafein Strateji Planlayıcısı (Canvas)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1a1a;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            color: #e0e0e0;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 400px 1fr; /* Sol ve sağ sütun düzeni */
+            gap: 40px;
+            width: 100%;
+            max-width: 1600px;
+            margin: 0 auto;
+            background-color: #2a2a2a;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 0 25px rgba(0, 123, 255, 0.1);
+            border: 1px solid #444;
+            position: relative;
+        }
+        .lang-switcher {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 5px;
+        }
+        .lang-btn {
+            background-color: #444;
+            border: 1px solid #666;
+            color: #e0e0e0;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        .lang-btn:hover {
+            background-color: #555;
+        }
+        .lang-btn.active {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .left-panel, .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+        .controls-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #b0b0b0;
+        }
+        input, select {
+            padding: 12px;
+            border: 1px solid #555;
+            border-radius: 8px;
+            font-size: 16px;
+            width: 100%;
+            box-sizing: border-box;
+            background-color: #333;
+            color: #e0e0e0;
+        }
+        button {
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            background-color: #007bff;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            margin-top: 10px;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        #dosing-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #dosing-table th, #dosing-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #444;
+        }
+        #dosing-table tr:last-child td {
+            border-bottom: none;
+        }
+        #summary-text {
+            font-size: 15px;
+            font-weight: 500;
+            margin: 0;
+            margin-top: 20px;
+            color: #b0b0b0;
+            font-style: italic;
+        }
+        h2, h3 {
+            text-align: center;
+            margin-top: 0;
+            color: #ffffff;
+        }
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 400px;
+        }
+        #caffeineCanvas {
+            width: 100%;
+            height: 100%;
+        }
+        footer {
+            margin-top: auto;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+            text-align: left;
+            font-size: 12px;
+            color: #888;
+        }
+        footer p { margin: 0 0 10px 0; }
+        footer a { color: #007bff; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+        .disclaimer {
+            font-style: italic;
+            color: #b0b0b0;
+            margin-bottom: 20px !important;
+        }
+        @media (max-width: 1024px) {
+            .container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="lang-switcher">
+            <button id="lang-tr" class="lang-btn active">TR</button>
+            <button id="lang-en" class="lang-btn">EN</button>
+        </div>
+
+        <div class="left-panel">
+            <div class="controls-wrapper">
+                <h2 data-key="strategy_params_title">Strateji Parametreleri</h2>
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="bodyWeight" data-key="body_weight_label">Vücut Ağırlığı (kg)</label>
+                        <input type="number" id="bodyWeight" value="70">
+                    </div>
+                    <div class="control-group">
+                        <label for="raceStart" data-key="race_start_label">Yarış Başlangıç Saati</label>
+                        <input type="time" id="raceStart" value="08:00">
+                    </div>
+                    <div class="control-group">
+                        <label for="halfLife" data-key="half_life_label">Yarılanma Süresi (saat)</label>
+                        <input type="number" id="halfLife" value="5">
+                    </div>
+                    <div class="control-group">
+                        <label for="initialDose" data-key="initial_dose_label">Başlangıç Dozu (mg)</label>
+                        <input type="number" id="initialDose" value="250">
+                    </div>
+                    <div class="control-group">
+                        <label for="doseAmount" data-key="booster_dose_label">Takviye Dozu (mg)</label>
+                        <input type="number" id="doseAmount" value="200">
+                    </div>
+                     <div class="control-group">
+                        <label for="strategy" data-key="strategy_label">Strateji Tercihi</label>
+                        <select id="strategy">
+                            <option value="stay_low" data-key="strategy_low">Daha Seyrek Alım</option>
+                            <option value="stay_high" data-key="strategy_high">Daha Sık Alım</option>
+                        </select>
+                    </div>
+                </div>
+                <button id="calculateButton" data-key="calculate_btn">Stratejiyi Oluştur</button>
+            </div>
+            <div class="main-content">
+                <h3 data-key="simulation_title">Kişiselleştirilmiş Kafein Simülasyonu</h3>
+                <canvas id="caffeineCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="output-section">
+                <h3 data-key="schedule_title">Önerilen Alım Takvimi</h3>
+                <div class="table-container">
+                    <table id="dosing-table">
+                        <thead>
+                            <tr>
+                                <th data-key="table_header_time">Saat</th>
+                                <th data-key="table_header_amount">Miktar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dosing-table-body"></tbody>
+                    </table>
+                </div>
+                <p id="summary-text"></p>
+            </div>
+            <footer>
+                <p class="disclaimer" data-key="disclaimer">Kafein yarılanma süresi çok değişken olabilir. Eğer yarılanma sürenizi bilmiyorsanız, varsayılan değeri baz alabilirsiniz fakat bu bir medikal öneri değildir. Bu araç, aşağıda yer alan makalelere göre hazırlanmıştır.</p>
+                <p><strong>Referanslar:</strong></p>
+                <p>1. Grgic, J., Mikulic, P., & Schoenfeld, B. J. (2024). Effects of Acute Ingestion of Caffeine Capsules on Muscle Strength and Muscle Endurance: A Systematic Review and Meta-Analysis. <em>Nutrients, 16</em>(8), 1146. <a href="https://doi.org/10.3390/nu16081146" target="_blank" rel="noopener noreferrer">https://doi.org/10.3390/nu16081146</a></p>
+                <p>2. Lin YS, Weibel J, Landolt HP, et al. (2022). Time to Recover From Daily Caffeine Intake. <em>Frontiers in Nutrition, 8</em>. <a href="https://www.frontiersin.org/journals/nutrition/articles/10.3389/fnut.2021.787225/full" target="_blank" rel="noopener noreferrer">https://doi.org/10.3389/fnut.2021.787225</a></p>
+                <p>3. Institute of Medicine (US) Committee on Military Nutrition Research. (2001). Pharmacology of Caffeine. In <em>Caffeine for the Sustainment of Mental Task Performance: Formulations for Military Operations</em>. National Academies Press (US). <a href="https://www.ncbi.nlm.nih.gov/books/NBK223808/" target="_blank" rel="noopener noreferrer">https://www.ncbi.nlm.nih.gov/books/NBK223808/</a></p>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        const translations = {
+            'tr': {
+                strategy_params_title: 'Strateji Parametreleri',
+                body_weight_label: 'Vücut Ağırlığı (kg)',
+                race_start_label: 'Yarış Başlangıç Saati',
+                half_life_label: 'Yarılanma Süresi (saat)',
+                initial_dose_label: 'Başlangıç Dozu (mg)',
+                booster_dose_label: 'Takviye Dozu (mg)',
+                strategy_label: 'Strateji Tercihi',
+                strategy_low: 'Daha Seyrek Alım',
+                strategy_high: 'Daha Sık Alım',
+                calculate_btn: 'Stratejiyi Oluştur',
+                simulation_title: 'Kişiselleştirilmiş Kafein Simülasyonu',
+                schedule_title: 'Önerilen Alım Takvimi',
+                table_header_time: 'Saat',
+                table_header_amount: 'Miktar',
+                summary_base: '* Bu plana göre, yarış sırasında yaklaşık olarak her <strong>{0} saatte bir</strong> takviye kafein almanız önerilmektedir.',
+                summary_no_booster: '* Yarış sırasında ek takviye doza ihtiyaç duyulmuyor.',
+                disclaimer: 'Kafein yarılanma süresi çok değişken olabilir. Eğer yarılanma sürenizi bilmiyorsanız, varsayılan değeri baz alabilirsiniz fakat bu bir medikal öneri değildir. Bu araç, aşağıda yer alan makalelere göre hazırlanmıştır.',
+                axis_label_time: 'Günün Saati',
+                target_zone_label: 'Hedef Bölge'
+            },
+            'en': {
+                strategy_params_title: 'Strategy Parameters',
+                body_weight_label: 'Body Weight (kg)',
+                race_start_label: 'Race Start Time',
+                half_life_label: 'Half-Life (hours)',
+                initial_dose_label: 'Initial Dose (mg)',
+                booster_dose_label: 'Booster Dose (mg)',
+                strategy_label: 'Strategy Preference',
+                strategy_low: 'Less Frequent Intake',
+                strategy_high: 'More Frequent Intake',
+                calculate_btn: 'Create Strategy',
+                simulation_title: 'Personalized Caffeine Simulation',
+                schedule_title: 'Recommended Intake Schedule',
+                table_header_time: 'Time',
+                table_header_amount: 'Amount',
+                summary_base: '* According to this plan, it is recommended to take a booster dose of caffeine approximately every <strong>{0} hours</strong> during the race.',
+                summary_no_booster: '* No booster dose is needed during the race.',
+                disclaimer: 'Caffeine half-life can be highly variable. If you do not know your half-life, you can use the default value, but this is not medical advice. This tool has been prepared according to the articles listed below.',
+                axis_label_time: 'Time of Day',
+                target_zone_label: 'Target Zone'
+            }
+        };
+
+        let currentLang = 'tr';
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            document.querySelectorAll('[data-key]').forEach(elem => {
+                const key = elem.getAttribute('data-key');
+                if (translations[lang][key]) {
+                    elem.textContent = translations[lang][key];
+                }
+            });
+            document.getElementById('lang-tr').classList.toggle('active', lang === 'tr');
+            document.getElementById('lang-en').classList.toggle('active', lang === 'en');
+            runSimulationAndDraw(); // Re-run to update dynamic text like summary
+        }
+
+        const calculateButton = document.getElementById('calculateButton');
+        const canvas = document.getElementById('caffeineCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function formatTime(baseTime, hoursOffset) {
+            const newTime = new Date(baseTime.getTime() + hoursOffset * 60 * 60 * 1000);
+            return newTime.toLocaleTimeString(currentLang === 'tr' ? 'tr-TR' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        function runSimulationAndDraw() {
+            const bodyWeight = parseFloat(document.getElementById('bodyWeight').value);
+            const raceStartTimeInput = document.getElementById('raceStart').value;
+            const halfLife = parseFloat(document.getElementById('halfLife').value);
+            const initialDose = parseFloat(document.getElementById('initialDose').value);
+            const doseAmount = parseFloat(document.getElementById('doseAmount').value);
+            const strategy = document.getElementById('strategy').value;
+            
+            if (isNaN(bodyWeight) || isNaN(halfLife) || isNaN(doseAmount) || isNaN(initialDose) || !raceStartTimeInput) return;
+
+            const [startHour, startMinute] = raceStartTimeInput.split(':');
+            const raceStartDate = new Date();
+            raceStartDate.setHours(startHour, startMinute, 0, 0);
+
+            const targetFloor = bodyWeight * 3;
+            const targetPeak = bodyWeight * 6;
+
+            const absorptionTime = 20 / 60; 
+            const simulationDuration = 16;
+            const timeStep = 0.05;
+            const labels = [], dataPoints = [], doseEvents = [];
+            
+            for (let t = -absorptionTime; t < 0; t += timeStep) {
+                labels.push(parseFloat(t.toFixed(2)));
+                dataPoints.push((t + absorptionTime) / absorptionTime * initialDose);
+            }
+            doseEvents.push({ time: -absorptionTime, amount: initialDose.toFixed(0) });
+
+            let currentCaffeine = initialDose;
+            const triggerLevel = (strategy === 'stay_high') ? Math.max(targetFloor, targetPeak - doseAmount) : targetFloor;
+
+            const k = Math.log(2) / halfLife;
+            const decayFactor = Math.exp(-k * timeStep);
+
+            let isDosePending = false, nextDoseTime = -1;
+
+            if (strategy === 'stay_high' && currentCaffeine < triggerLevel) {
+                isDosePending = true;
+                nextDoseTime = 0;
+            }
+
+            for (let t = 0; t <= simulationDuration; t += timeStep) {
+                if (isDosePending && t >= nextDoseTime) {
+                    currentCaffeine += doseAmount;
+                    doseEvents.push({ time: nextDoseTime, amount: doseAmount.toFixed(0) });
+                    isDosePending = false;
+                }
+                labels.push(parseFloat(t.toFixed(2)));
+                dataPoints.push(currentCaffeine);
+                let nextCaffeine = currentCaffeine * decayFactor;
+                if (!isDosePending && nextCaffeine < triggerLevel && currentCaffeine >= triggerLevel) {
+                    isDosePending = true;
+                    nextDoseTime = Math.ceil((t + timeStep) * 2) / 2;
+                }
+                currentCaffeine = nextCaffeine;
+            }
+            
+            drawChart(labels, dataPoints, targetFloor, targetPeak, raceStartDate);
+            updateResults(doseEvents, raceStartDate);
+        }
+
+        function drawChart(labels, data, yMinTarget, yMaxTarget, baseTime) {
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+            
+            const padding = { top: 20, right: 20, bottom: 60, left: 60 };
+            const chartWidth = canvas.width - padding.left - padding.right;
+            const chartHeight = canvas.height - padding.top - padding.bottom;
+            
+            const xMin = labels[0], xMax = labels[labels.length - 1];
+            const yMax = Math.max(yMaxTarget * 1.2, ...data);
+
+            const getX = (val) => padding.left + ((val - xMin) / (xMax - xMin)) * chartWidth;
+            const getY = (val) => padding.top + chartHeight - (val / yMax) * chartHeight;
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fillStyle = '#b0b0b0';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            for (let i = 0; i <= yMax; i += 50) {
+                if (i % 100 === 0) {
+                    const y = getY(i);
+                    ctx.beginPath();
+                    ctx.moveTo(padding.left - 5, y);
+                    ctx.lineTo(padding.left + chartWidth, y);
+                    ctx.stroke();
+                    ctx.fillText(`${i}mg`, padding.left - 30, y);
+                }
+            }
+
+            for (let i = Math.ceil(xMin); i <= xMax; i += 2) {
+                 if (i >= 0 && i % 2 === 0) {
+                    const x = getX(i);
+                    ctx.beginPath();
+                    ctx.moveTo(x, padding.top);
+                    ctx.lineTo(x, padding.top + chartHeight + 5);
+                    ctx.stroke();
+                    ctx.fillText(formatTime(baseTime, i), x, padding.top + chartHeight + 20);
+                }
+            }
+             ctx.fillText(translations[currentLang].axis_label_time, padding.left + chartWidth / 2, padding.top + chartHeight + 45);
+
+            const yTargetMin = getY(yMaxTarget), yTargetMax = getY(yMinTarget);
+            ctx.fillStyle = 'rgba(255, 99, 132, 0.1)';
+            ctx.fillRect(padding.left, yTargetMin, chartWidth, yTargetMax - yTargetMin);
+            ctx.fillStyle = 'rgba(255, 99, 132, 0.8)';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillText(translations[currentLang].target_zone_label, padding.left + 55, yTargetMin + 15);
+            
+            ctx.beginPath();
+            ctx.moveTo(getX(labels[0]), getY(data[0]));
+            for (let i = 1; i < labels.length; i++) ctx.lineTo(getX(labels[i]), getY(data[i]));
+            ctx.lineTo(getX(labels[labels.length - 1]), getY(0));
+            ctx.lineTo(getX(labels[0]), getY(0));
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(0, 123, 255, 0.15)';
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(getX(labels[0]), getY(data[0]));
+            for (let i = 1; i < labels.length; i++) ctx.lineTo(getX(labels[i]), getY(data[i]));
+            ctx.strokeStyle = '#007bff';
+            ctx.lineWidth = 3;
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+        }
+
+        function updateResults(doseEvents, baseTime) {
+            const tableBody = document.getElementById('dosing-table-body');
+            tableBody.innerHTML = '';
+            doseEvents.sort((a, b) => a.time - b.time).forEach(event => {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = formatTime(baseTime, event.time);
+                row.insertCell(1).textContent = `${event.amount} mg`;
+            });
+
+            const summaryElement = document.getElementById('summary-text');
+            const raceDoses = doseEvents.filter(e => e.time >= 0);
+            if (raceDoses.length > 1) {
+                 let totalInterval = 0;
+                 for (let i = 1; i < raceDoses.length; i++) totalInterval += raceDoses[i].time - raceDoses[i - 1].time;
+                const averageInterval = totalInterval / (raceDoses.length - 1);
+                const roundedInterval = Math.round(averageInterval * 2) / 2;
+                summaryElement.innerHTML = translations[currentLang].summary_base.replace('{0}', roundedInterval);
+            } else {
+                summaryElement.innerHTML = translations[currentLang].summary_no_booster;
+            }
+        }
+        
+        calculateButton.addEventListener('click', runSimulationAndDraw);
+        window.addEventListener('load', () => setLanguage('tr')); // Default to Turkish
+        window.addEventListener('resize', runSimulationAndDraw);
+        document.getElementById('lang-tr').addEventListener('click', () => setLanguage('tr'));
+        document.getElementById('lang-en').addEventListener('click', () => setLanguage('en'));
+
+    </script>
+</body>
+</html>
