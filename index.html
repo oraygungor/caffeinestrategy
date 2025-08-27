@@ -27,10 +27,14 @@
             border: 1px solid #444;
             position: relative;
         }
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap; /* Dar ekranlar için sarmalama */
+        }
         .lang-switcher {
-            position: absolute;
-            top: 20px;
-            right: 20px;
             display: flex;
             gap: 5px;
         }
@@ -123,7 +127,7 @@
         }
         h2, h3 {
             text-align: center;
-            margin-top: 0;
+            margin: 0;
             color: #ffffff;
         }
         .main-content {
@@ -159,14 +163,15 @@
 </head>
 <body>
     <div class="container">
-        <div class="lang-switcher">
-            <button id="lang-tr" class="lang-btn active">TR</button>
-            <button id="lang-en" class="lang-btn">EN</button>
-        </div>
-
         <div class="left-panel">
             <div class="controls-wrapper">
-                <h2 data-key="strategy_params_title">Strateji Parametreleri</h2>
+                <div class="header-container">
+                    <h2 data-key="strategy_params_title">Strateji Parametreleri</h2>
+                    <div class="lang-switcher">
+                        <button id="lang-tr" class="lang-btn active">TR</button>
+                        <button id="lang-en" class="lang-btn">EN</button>
+                    </div>
+                </div>
                 <div class="controls">
                     <div class="control-group">
                         <label for="bodyWeight" data-key="body_weight_label">Vücut Ağırlığı (kg)</label>
@@ -177,6 +182,10 @@
                         <input type="time" id="raceStart" value="08:00">
                     </div>
                     <div class="control-group">
+                        <label for="raceDuration" data-key="race_duration_label">Yarış Tahmini Süresi (saat)</label>
+                        <input type="number" id="raceDuration" value="8">
+                    </div>
+                    <div class="control-group">
                         <label for="halfLife" data-key="half_life_label">Yarılanma Süresi (saat)</label>
                         <input type="number" id="halfLife" value="5">
                     </div>
@@ -184,7 +193,7 @@
                         <label for="initialDose" data-key="initial_dose_label">Başlangıç Dozu (mg)</label>
                         <input type="number" id="initialDose" value="250">
                     </div>
-                    <div class="control-group">
+                     <div class="control-group">
                         <label for="doseAmount" data-key="booster_dose_label">Takviye Dozu (mg)</label>
                         <input type="number" id="doseAmount" value="200">
                     </div>
@@ -236,6 +245,7 @@
                 strategy_params_title: 'Strateji Parametreleri',
                 body_weight_label: 'Vücut Ağırlığı (kg)',
                 race_start_label: 'Yarış Başlangıç Saati',
+                race_duration_label: 'Yarış Tahmini Süresi (saat)',
                 half_life_label: 'Yarılanma Süresi (saat)',
                 initial_dose_label: 'Başlangıç Dozu (mg)',
                 booster_dose_label: 'Takviye Dozu (mg)',
@@ -257,6 +267,7 @@
                 strategy_params_title: 'Strategy Parameters',
                 body_weight_label: 'Body Weight (kg)',
                 race_start_label: 'Race Start Time',
+                race_duration_label: 'Est. Race Duration (hours)',
                 half_life_label: 'Half-Life (hours)',
                 initial_dose_label: 'Initial Dose (mg)',
                 booster_dose_label: 'Booster Dose (mg)',
@@ -288,7 +299,7 @@
             });
             document.getElementById('lang-tr').classList.toggle('active', lang === 'tr');
             document.getElementById('lang-en').classList.toggle('active', lang === 'en');
-            runSimulationAndDraw(); // Re-run to update dynamic text like summary
+            runSimulationAndDraw();
         }
 
         const calculateButton = document.getElementById('calculateButton');
@@ -303,12 +314,13 @@
         function runSimulationAndDraw() {
             const bodyWeight = parseFloat(document.getElementById('bodyWeight').value);
             const raceStartTimeInput = document.getElementById('raceStart').value;
+            const raceDuration = parseFloat(document.getElementById('raceDuration').value);
             const halfLife = parseFloat(document.getElementById('halfLife').value);
             const initialDose = parseFloat(document.getElementById('initialDose').value);
             const doseAmount = parseFloat(document.getElementById('doseAmount').value);
             const strategy = document.getElementById('strategy').value;
             
-            if (isNaN(bodyWeight) || isNaN(halfLife) || isNaN(doseAmount) || isNaN(initialDose) || !raceStartTimeInput) return;
+            if (isNaN(bodyWeight) || isNaN(raceDuration) || isNaN(halfLife) || isNaN(doseAmount) || isNaN(initialDose) || !raceStartTimeInput) return;
 
             const [startHour, startMinute] = raceStartTimeInput.split(':');
             const raceStartDate = new Date();
@@ -318,7 +330,7 @@
             const targetPeak = bodyWeight * 6;
 
             const absorptionTime = 20 / 60; 
-            const simulationDuration = 16;
+            const simulationDuration = raceDuration; // Use user input for simulation duration
             const timeStep = 0.05;
             const labels = [], dataPoints = [], doseEvents = [];
             
@@ -391,9 +403,10 @@
                     ctx.fillText(`${i}mg`, padding.left - 30, y);
                 }
             }
-
-            for (let i = Math.ceil(xMin); i <= xMax; i += 2) {
-                 if (i >= 0 && i % 2 === 0) {
+            
+            const xStep = Math.max(1, Math.round(xMax / 8)); // Dynamic step for x-axis
+            for (let i = Math.ceil(xMin); i <= xMax; i += 1) {
+                 if (i >= 0 && i % xStep === 0) {
                     const x = getX(i);
                     ctx.beginPath();
                     ctx.moveTo(x, padding.top);
@@ -452,7 +465,7 @@
         }
         
         calculateButton.addEventListener('click', runSimulationAndDraw);
-        window.addEventListener('load', () => setLanguage('tr')); // Default to Turkish
+        window.addEventListener('load', () => setLanguage('tr'));
         window.addEventListener('resize', runSimulationAndDraw);
         document.getElementById('lang-tr').addEventListener('click', () => setLanguage('tr'));
         document.getElementById('lang-en').addEventListener('click', () => setLanguage('en'));
