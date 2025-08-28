@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="tr">
-<head> 
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kişiselleştirilebilir Kafein Strateji Planlayıcısı (Canvas)</title>
@@ -190,11 +190,15 @@
                     </div>
                     <div class="control-group">
                         <label for="initialDose" data-key="initial_dose_label">Başlangıç Dozu (mg)</label>
-                        <input type="number" id="initialDose" value="250">
+                        <input type="number" id="initialDose" value="200">
+                    </div>
+                    <div class="control-group">
+                        <label for="initialDoseTime" data-key="initial_dose_time_label">İlk Doz Zamanı (yarışa göre saat)</label>
+                        <input type="number" id="initialDoseTime" value="-0.5" step="0.25">
                     </div>
                      <div class="control-group">
                         <label for="doseAmount" data-key="booster_dose_label">Takviye Dozu (mg)</label>
-                        <input type="number" id="doseAmount" value="200">
+                        <input type="number" id="doseAmount" value="75">
                     </div>
                      <div class="control-group">
                         <label for="strategy" data-key="strategy_label">Strateji Tercihi</label>
@@ -248,6 +252,7 @@
                 race_duration_label: 'Yarış Tahmini Süresi (saat)',
                 half_life_label: 'Yarılanma Süresi (saat)',
                 initial_dose_label: 'Başlangıç Dozu (mg)',
+                initial_dose_time_label: 'İlk Doz Zamanı (yarışa göre saat)',
                 booster_dose_label: 'Takviye Dozu (mg)',
                 strategy_label: 'Strateji Tercihi',
                 strategy_low: 'Daha Seyrek Alım',
@@ -270,6 +275,7 @@
                 race_duration_label: 'Est. Race Duration (hours)',
                 half_life_label: 'Half-Life (hours)',
                 initial_dose_label: 'Initial Dose (mg)',
+                initial_dose_time_label: 'Initial Dose Time (vs race start)',
                 booster_dose_label: 'Booster Dose (mg)',
                 strategy_label: 'Strategy Preference',
                 strategy_low: 'Less Frequent Intake',
@@ -312,69 +318,80 @@
         }
         
         function runSimulationAndDraw() {
+            // 1. Get all user inputs
             const bodyWeight = parseFloat(document.getElementById('bodyWeight').value);
             const raceStartTimeInput = document.getElementById('raceStart').value;
             const raceDuration = parseFloat(document.getElementById('raceDuration').value);
             const halfLife = parseFloat(document.getElementById('halfLife').value);
             const initialDose = parseFloat(document.getElementById('initialDose').value);
+            const initialDoseTime = parseFloat(document.getElementById('initialDoseTime').value);
             const doseAmount = parseFloat(document.getElementById('doseAmount').value);
             const strategy = document.getElementById('strategy').value;
             
-            if (isNaN(bodyWeight) || isNaN(raceDuration) || isNaN(halfLife) || isNaN(doseAmount) || isNaN(initialDose) || !raceStartTimeInput) return;
+            if (isNaN(bodyWeight) || isNaN(raceDuration) || isNaN(halfLife) || isNaN(doseAmount) || isNaN(initialDose) || isNaN(initialDoseTime) || !raceStartTimeInput) return;
 
             const [startHour, startMinute] = raceStartTimeInput.split(':');
             const raceStartDate = new Date();
             raceStartDate.setHours(startHour, startMinute, 0, 0);
 
+            // 2. Setup simulation constants and state
             const targetFloor = bodyWeight * 3;
             const targetPeak = bodyWeight * 6;
-
-            const absorptionTime = 20 / 60; 
-            const simulationDuration = raceDuration;
-            const timeStep = 0.05;
-            const labels = [], dataPoints = [], doseEvents = [];
-            
-            if (initialDose > 0) {
-                for (let t = -absorptionTime; t < 0; t += timeStep) {
-                    labels.push(parseFloat(t.toFixed(2)));
-                    dataPoints.push((t + absorptionTime) / absorptionTime * initialDose);
-                }
-                doseEvents.push({ time: -absorptionTime, amount: initialDose.toFixed(0) });
-            }
-
-
-            let currentCaffeine = initialDose;
-            const triggerLevel = (strategy === 'stay_high') ? Math.max(targetFloor, targetPeak - doseAmount) : targetFloor;
-
+            const absorptionTime = 20 / 60; // 20 minutes in hours
+            const timeStep = 0.05; // Simulation precision
             const k = Math.log(2) / halfLife;
             const decayFactor = Math.exp(-k * timeStep);
+            const triggerLevel = (strategy === 'stay_high') ? Math.max(targetFloor, targetPeak - doseAmount) : targetFloor;
 
-            let isDosePending = false, nextDoseTime = -1;
+            let currentCaffeine = 0;
+            const labels = [], dataPoints = [], doseEvents = [];
+            
+            let isBoosterPending = false;
+            let nextBoosterDoseTime = -1;
 
-            for (let t = 0; t <= simulationDuration; t += timeStep) {
-                // Apply a scheduled dose if its time has come
-                if (isDosePending && t >= nextDoseTime) {
-                    currentCaffeine += doseAmount;
-                    doseEvents.push({ time: nextDoseTime, amount: doseAmount.toFixed(0) });
-                    isDosePending = false; // The dose has been taken, so we are no longer pending
+            if (initialDose > 0) {
+                 doseEvents.push({ time: initialDoseTime, amount: initialDose.toFixed(0) });
+            }
+
+            // 3. Run the unified simulation loop
+            const simStart = Math.min(-2, initialDoseTime); // Start simulation early enough
+            const simEnd = raceDuration;
+            const initialDoseFullyAbsorbedTime = initialDoseTime + absorptionTime;
+
+            for (let t = simStart; t <= simEnd; t += timeStep) {
+                let absorbedFromInitialDose = 0;
+                // A. Handle linear absorption of the initial dose
+                if (initialDose > 0 && t >= initialDoseTime && t < initialDoseTime + absorptionTime) {
+                    absorbedFromInitialDose = (initialDose / absorptionTime) * timeStep;
                 }
 
+                let boosterDoseAmount = 0;
+                // B. Handle instantaneous absorption of booster doses
+                if (isBoosterPending && t >= nextBoosterDoseTime) {
+                    boosterDoseAmount = doseAmount;
+                    doseEvents.push({ time: nextBoosterDoseTime, amount: doseAmount.toFixed(0) });
+                    isBoosterPending = false;
+                }
+                
+                // C. Update caffeine level (Decay, then Absorb)
+                currentCaffeine *= decayFactor;
+                currentCaffeine += absorbedFromInitialDose;
+                currentCaffeine += boosterDoseAmount;
+                
+                // D. Store data for the chart
                 labels.push(parseFloat(t.toFixed(2)));
                 dataPoints.push(currentCaffeine);
 
-                // If we are not waiting for a dose and the current level is below the trigger, schedule a new one.
-                // This is the key fix for the bug.
-                if (!isDosePending && currentCaffeine < triggerLevel) {
-                    isDosePending = true;
+                // E. Schedule the next booster dose if needed
+                // *** LOGIC FIX: Only start checking for boosters AFTER the initial dose is fully absorbed. ***
+                if (t >= initialDoseFullyAbsorbedTime && !isBoosterPending && currentCaffeine < triggerLevel) {
+                    isBoosterPending = true;
                     // Schedule for the next practical time slot (rounded to 30 mins)
-                    // Ensure the scheduled time is not in the past
-                    nextDoseTime = Math.max(t, Math.ceil(t * 2) / 2);
+                    nextBoosterDoseTime = Math.max(t, Math.ceil(t * 2) / 2);
                 }
-                
-                // Decay for the next step
-                currentCaffeine = currentCaffeine * decayFactor;
             }
             
+            // 4. Render results
             drawChart(labels, dataPoints, targetFloor, targetPeak, raceStartDate);
             updateResults(doseEvents, raceStartDate);
         }
@@ -387,20 +404,22 @@
             const chartWidth = canvas.width - padding.left - padding.right;
             const chartHeight = canvas.height - padding.top - padding.bottom;
             
-            const xMin = labels[0] || -0.5, xMax = labels[labels.length - 1] || 8;
+            const xMin = labels[0] || -2, xMax = labels[labels.length - 1] || 8;
             const yMax = Math.max(yMaxTarget * 1.2, ...data, 100); // Ensure y-axis is not 0
 
             const getX = (val) => padding.left + ((val - xMin) / (xMax - xMin)) * chartWidth;
             const getY = (val) => padding.top + chartHeight - (val / yMax) * chartHeight;
 
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
             ctx.fillStyle = '#b0b0b0';
             ctx.font = '12px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
+            // Draw Y-axis grid and labels
             for (let i = 0; i <= yMax; i += 50) {
-                if (i % 100 === 0) {
+                if (i > 0 && i % 100 === 0) {
                     const y = getY(i);
                     ctx.beginPath();
                     ctx.moveTo(padding.left - 5, y);
@@ -410,19 +429,19 @@
                 }
             }
             
+            // Draw X-axis grid and labels
             const xStep = Math.max(1, Math.round((xMax - xMin) / 8)); // Dynamic step for x-axis
-            for (let i = Math.ceil(xMin); i <= xMax; i += 1) {
-                 if (i >= 0 && i % xStep === 0) {
-                    const x = getX(i);
-                    ctx.beginPath();
-                    ctx.moveTo(x, padding.top);
-                    ctx.lineTo(x, padding.top + chartHeight + 5);
-                    ctx.stroke();
-                    ctx.fillText(formatTime(baseTime, i), x, padding.top + chartHeight + 20);
-                }
+            for (let i = Math.ceil(xMin / xStep) * xStep; i <= xMax; i += xStep) {
+                const x = getX(i);
+                ctx.beginPath();
+                ctx.moveTo(x, padding.top);
+                ctx.lineTo(x, padding.top + chartHeight + 5);
+                ctx.stroke();
+                ctx.fillText(formatTime(baseTime, i), x, padding.top + chartHeight + 20);
             }
-             ctx.fillText(translations[currentLang].axis_label_time, padding.left + chartWidth / 2, padding.top + chartHeight + 45);
+            ctx.fillText(translations[currentLang].axis_label_time, padding.left + chartWidth / 2, padding.top + chartHeight + 45);
 
+            // Draw Target Zone
             const yTargetMin = getY(yMaxTarget), yTargetMax = getY(yMinTarget);
             ctx.fillStyle = 'rgba(255, 99, 132, 0.1)';
             ctx.fillRect(padding.left, yTargetMin, chartWidth, yTargetMax - yTargetMin);
@@ -430,6 +449,7 @@
             ctx.font = 'bold 12px sans-serif';
             ctx.fillText(translations[currentLang].target_zone_label, padding.left + 55, yTargetMin + 15);
             
+            // Draw data line and fill
             if (labels.length > 0) {
                 ctx.beginPath();
                 ctx.moveTo(getX(labels[0]), getY(data[0]));
@@ -460,14 +480,18 @@
             });
 
             const summaryElement = document.getElementById('summary-text');
-            const raceDoses = doseEvents.filter(e => e.time >= 0 && e.amount > 0);
-            if (raceDoses.length > 1) {
-                 let totalInterval = 0;
-                 for (let i = 1; i < raceDoses.length; i++) totalInterval += raceDoses[i].time - raceDoses[i - 1].time;
-                const averageInterval = totalInterval / (raceDoses.length - 1);
+            const boosterDoses = doseEvents.filter(e => e.time >= 0 && parseFloat(e.amount) === parseFloat(document.getElementById('doseAmount').value));
+            
+            if (boosterDoses.length > 1) {
+                let totalInterval = 0;
+                for (let i = 1; i < boosterDoses.length; i++) totalInterval += boosterDoses[i].time - boosterDoses[i - 1].time;
+                const averageInterval = totalInterval / (boosterDoses.length - 1);
                 const roundedInterval = Math.round(averageInterval * 2) / 2;
                 summaryElement.innerHTML = translations[currentLang].summary_base.replace('{0}', roundedInterval);
-            } else {
+            } else if (boosterDoses.length === 1) {
+                 summaryElement.innerHTML = translations[currentLang].summary_base.replace('{0}', raceDuration.value);
+            }
+            else {
                 summaryElement.innerHTML = translations[currentLang].summary_no_booster;
             }
         }
